@@ -58,7 +58,7 @@ def check_ema(symbol, state):
     prev9, curr9 = ema9.iloc[-2], ema9.iloc[-1]
     prev21, curr21 = ema21.iloc[-2], ema21.iloc[-1]
 
-    price = round(float(close.iloc[-1]), 2)
+    price = round(float(close.tail(1).values[0]), 2)
 
     last_signal = state.get(symbol, "NONE")
 
