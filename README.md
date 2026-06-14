@@ -1,1 +1,1 @@
-# ema-scanner
+# .github/workflows/ema.yml
