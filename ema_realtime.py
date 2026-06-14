@@ -13,7 +13,16 @@ STATE_FILE = "state.txt"
 
 def send_message(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": CHAT_ID, "text": text})
+
+    response = requests.post(
+        url,
+        json={
+            "chat_id": CHAT_ID,
+            "text": text
+        }
+    )
+
+    print("Telegram response:", response.text)
 
 
 def load_state():
@@ -53,13 +62,13 @@ def check_ema(symbol, state):
 
     last_signal = state.get(symbol, "NONE")
 
-    # BUY CROSS
+    # BUY
     if prev9 < prev21 and curr9 > curr21:
         if last_signal != "BUY":
             send_message(f"🟢 BUY {symbol}\nEMA9 crossed above EMA21\nPrice: {price}")
             state[symbol] = "BUY"
 
-    # SELL CROSS
+    # SELL
     elif prev9 > prev21 and curr9 < curr21:
         if last_signal != "SELL":
             send_message(f"🔴 SELL {symbol}\nEMA9 crossed below EMA21\nPrice: {price}")
@@ -67,25 +76,18 @@ def check_ema(symbol, state):
 
 
 def main():
-    def send_message(text):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    print("Bot started")
 
-    response = requests.post(
-        url,
-        json={
-            "chat_id": CHAT_ID,
-            "text": text
-        }
-    )
+    print("TOKEN:", bool(TELEGRAM_TOKEN))
+    print("CHAT_ID:", CHAT_ID)
 
-    print("Telegram response:", response.text)
     state = load_state()
 
     for stock in STOCKS:
         try:
             check_ema(stock, state)
         except Exception as e:
-            print(stock, e)
+            print(stock, "ERROR:", e)
 
     save_state(state)
 
