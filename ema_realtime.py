@@ -131,6 +131,9 @@ def main():
 
     print("Telegram token set:", bool(TELEGRAM_TOKEN))
     print("Chat ID set:", bool(CHAT_ID))
+    
+        # ✅ TEST MESSAGE (ADD THIS)
+    send_message("🧪 TEST: EMA bot Telegram is working")
 
     state = load_state()
 
