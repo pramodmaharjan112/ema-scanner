@@ -67,6 +67,7 @@ def check_ema(symbol, state):
 
 
 def main():
+    send_message("🧪 EMA bot is working (test message)")
     state = load_state()
 
     for stock in STOCKS:
