@@ -3,6 +3,9 @@ import requests
 import yfinance as yf
 import pandas as pd
 
+# ======================
+# CONFIG
+# ======================
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
@@ -11,26 +14,41 @@ STOCKS = ["AAPL", "NVDA", "TSLA", "AMD", "MSFT", "META", "AMZN"]
 STATE_FILE = "state.txt"
 
 
+# ======================
+# TELEGRAM SENDER
+# ======================
 def send_message(text):
+    if not TELEGRAM_TOKEN or not CHAT_ID:
+        print("Missing Telegram credentials")
+        return
+
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
 
-    response = requests.post(
-        url,
-        json={
-            "chat_id": CHAT_ID,
-            "text": text
-        }
-    )
+    try:
+        response = requests.post(
+            url,
+            json={"chat_id": CHAT_ID, "text": text},
+            timeout=10
+        )
+        print("Telegram response:", response.text)
+    except Exception as e:
+        print("Telegram error:", e)
 
-    print("Telegram response:", response.text)
 
-
+# ======================
+# STATE HANDLING
+# ======================
 def load_state():
+    state = {}
     if not os.path.exists(STATE_FILE):
-        return {}
+        return state
+
     with open(STATE_FILE, "r") as f:
-        lines = f.read().splitlines()
-    return dict(line.split(":") for line in lines if ":" in line)
+        for line in f:
+            if ":" in line:
+                k, v = line.strip().split(":")
+                state[k] = v
+    return state
 
 
 def save_state(state):
@@ -39,55 +57,79 @@ def save_state(state):
             f.write(f"{k}:{v}\n")
 
 
+# ======================
+# EMA CHECK
+# ======================
 def check_ema(symbol, state):
-    df = yf.download(
-        symbol,
-        interval="5m",
-        period="1d",
-        progress=False
-    )
+    try:
+        df = yf.download(
+            symbol,
+            interval="5m",
+            period="1d",
+            progress=False
+        )
 
-    if len(df) < 30:
-        return
+        if df is None or df.empty:
+            print(symbol, "no data")
+            return
 
-    close = df["Close"]
+        # FIX: force clean series
+        close = df["Close"].dropna().astype(float).squeeze()
 
-    ema9 = close.ewm(span=9).mean()
-    ema21 = close.ewm(span=21).mean()
+        if len(close) < 30:
+            print(symbol, "not enough data")
+            return
 
-    prev9, curr9 = ema9.iloc[-2], ema9.iloc[-1]
-    prev21, curr21 = ema21.iloc[-2], ema21.iloc[-1]
+        ema9 = close.ewm(span=9).mean()
+        ema21 = close.ewm(span=21).mean()
 
-    price = round(float(close.tail(1).values[0]), 2)
+        prev9, curr9 = ema9.iloc[-2], ema9.iloc[-1]
+        prev21, curr21 = ema21.iloc[-2], ema21.iloc[-1]
 
-    last_signal = state.get(symbol, "NONE")
+        price = round(float(close.iloc[-1]), 2)
 
-    # BUY
-    if prev9 < prev21 and curr9 > curr21:
-        if last_signal != "BUY":
-            send_message(f"🟢 BUY {symbol}\nEMA9 crossed above EMA21\nPrice: {price}")
-            state[symbol] = "BUY"
+        last_signal = state.get(symbol, "NONE")
 
-    # SELL
-    elif prev9 > prev21 and curr9 < curr21:
-        if last_signal != "SELL":
-            send_message(f"🔴 SELL {symbol}\nEMA9 crossed below EMA21\nPrice: {price}")
-            state[symbol] = "SELL"
+        # ======================
+        # BUY SIGNAL
+        # ======================
+        if prev9 < prev21 and curr9 > curr21:
+            if last_signal != "BUY":
+                send_message(
+                    f"🟢 BUY SIGNAL\n{symbol}\nEMA9 crossed ABOVE EMA21\nPrice: {price}"
+                )
+                state[symbol] = "BUY"
+
+        # ======================
+        # SELL SIGNAL
+        # ======================
+        elif prev9 > prev21 and curr9 < curr21:
+            if last_signal != "SELL":
+                send_message(
+                    f"🔴 SELL SIGNAL\n{symbol}\nEMA9 crossed BELOW EMA21\nPrice: {price}"
+                )
+                state[symbol] = "SELL"
+
+        else:
+            print(symbol, "no crossover")
+
+    except Exception as e:
+        print(symbol, "ERROR:", e)
 
 
+# ======================
+# MAIN
+# ======================
 def main():
-    print("Bot started")
+    print("EMA Bot Started")
 
-    print("TOKEN:", bool(TELEGRAM_TOKEN))
-    print("CHAT_ID:", CHAT_ID)
+    print("Telegram token set:", bool(TELEGRAM_TOKEN))
+    print("Chat ID set:", bool(CHAT_ID))
 
     state = load_state()
 
     for stock in STOCKS:
-        try:
-            check_ema(stock, state)
-        except Exception as e:
-            print(stock, "ERROR:", e)
+        check_ema(stock, state)
 
     save_state(state)
 
