@@ -67,7 +67,18 @@ def check_ema(symbol, state):
 
 
 def main():
-    send_message("🧪 EMA bot is working (test message)")
+    def send_message(text):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+
+    response = requests.post(
+        url,
+        json={
+            "chat_id": CHAT_ID,
+            "text": text
+        }
+    )
+
+    print("Telegram response:", response.text)
     state = load_state()
 
     for stock in STOCKS:
