@@ -2,6 +2,7 @@ import os
 import requests
 import yfinance as yf
 import pandas as pd
+from ta.momentum import RSIIndicator
 
 # ======================
 # CONFIG
@@ -25,12 +26,7 @@ def send_message(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
 
     try:
-        response = requests.post(
-            url,
-            json={"chat_id": CHAT_ID, "text": text},
-            timeout=10
-        )
-        print("Telegram response:", response.text)
+        requests.post(url, json={"chat_id": CHAT_ID, "text": text}, timeout=10)
     except Exception as e:
         print("Telegram error:", e)
 
@@ -58,7 +54,21 @@ def save_state(state):
 
 
 # ======================
-# EMA LOGIC
+# INDICATORS
+# ======================
+def calculate_indicators(df):
+    close = df["Close"].astype(float)
+
+    ema9 = close.ewm(span=9).mean()
+    ema21 = close.ewm(span=21).mean()
+
+    rsi = RSIIndicator(close, window=14).rsi()
+
+    return ema9, ema21, rsi
+
+
+# ======================
+# SIGNAL ENGINE (PRO LOGIC)
 # ======================
 def check_ema(symbol, state):
     try:
@@ -68,42 +78,56 @@ def check_ema(symbol, state):
             print(symbol, "no data")
             return
 
-        # FIXED CLEAN DATA
-        close = df["Close"]
-
-        if isinstance(close, pd.DataFrame):
-            close = close.iloc[:, 0]
-
-        close = close.dropna().astype(float)
-
-        if len(close) < 30:
+        if len(df) < 50:
             print(symbol, "not enough data")
             return
 
-        ema9 = close.ewm(span=9).mean()
-        ema21 = close.ewm(span=21).mean()
+        ema9, ema21, rsi = calculate_indicators(df)
 
         prev9, curr9 = ema9.iloc[-2], ema9.iloc[-1]
         prev21, curr21 = ema21.iloc[-2], ema21.iloc[-1]
+        curr_rsi = rsi.iloc[-1]
 
-        price = round(float(close.values[-1]), 2)
+        price = round(float(df["Close"].iloc[-1]), 2)
 
         last_signal = state.get(symbol, "NONE")
 
+        # ======================
+        # STRONG BUY SIGNAL
+        # ======================
+        buy_condition = (
+            prev9 < prev21 and
+            curr9 > curr21 and
+            curr_rsi > 50 and
+            curr_rsi < 70
+        )
+
+        # ======================
+        # STRONG SELL SIGNAL
+        # ======================
+        sell_condition = (
+            prev9 > prev21 and
+            curr9 < curr21 and
+            curr_rsi < 50 and
+            curr_rsi > 30
+        )
+
         # BUY
-        if prev9 < prev21 and curr9 > curr21:
-            if last_signal != "BUY":
-                send_message(f"🟢 BUY {symbol}\nEMA9 crossed ABOVE EMA21\nPrice: {price}")
-                state[symbol] = "BUY"
+        if buy_condition and last_signal != "BUY":
+            send_message(
+                f"🟢 STRONG BUY SIGNAL\n{symbol}\nPrice: {price}\nRSI: {round(curr_rsi,2)}"
+            )
+            state[symbol] = "BUY"
 
         # SELL
-        elif prev9 > prev21 and curr9 < curr21:
-            if last_signal != "SELL":
-                send_message(f"🔴 SELL {symbol}\nEMA9 crossed BELOW EMA21\nPrice: {price}")
-                state[symbol] = "SELL"
+        elif sell_condition and last_signal != "SELL":
+            send_message(
+                f"🔴 STRONG SELL SIGNAL\n{symbol}\nPrice: {price}\nRSI: {round(curr_rsi,2)}"
+            )
+            state[symbol] = "SELL"
 
         else:
-            print(symbol, "no crossover")
+            print(symbol, "no strong signal")
 
     except Exception as e:
         print(symbol, "ERROR:", e)
@@ -113,12 +137,9 @@ def check_ema(symbol, state):
 # MAIN
 # ======================
 def main():
-    print("EMA Bot Started")
-    print("Telegram token set:", bool(TELEGRAM_TOKEN))
-    print("Chat ID set:", bool(CHAT_ID))
+    print("PRO Trading Bot Started")
 
-    # TEST MESSAGE (temporary)
-    send_message("🧪 TEST: EMA bot Telegram is working")
+    send_message("🚀 Pro EMA Bot Started")
 
     state = load_state()
 
