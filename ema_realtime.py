@@ -69,13 +69,20 @@ def save_state(state):
 # ======================
 def calculate_indicators(df):
 
+    # Flatten columns if MultiIndex exists
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+
     close = df["Close"]
 
-    # Handle newer yfinance returning DataFrame
-    if isinstance(close, pd.DataFrame):
-        close = close.iloc[:, 0]
+    # Force Series (very important fix)
+    close = pd.Series(close).squeeze()
 
-    close = pd.Series(close).astype(float).dropna()
+    close = close.astype(float).dropna()
+
+    if close.ndim != 1:
+        close = close.values.ravel()
+        close = pd.Series(close)
 
     ema9 = close.ewm(span=9, adjust=False).mean()
     ema21 = close.ewm(span=21, adjust=False).mean()
