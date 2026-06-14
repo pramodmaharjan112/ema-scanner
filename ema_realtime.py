@@ -15,7 +15,7 @@ STATE_FILE = "state.txt"
 
 
 # ======================
-# TELEGRAM SENDER
+# TELEGRAM
 # ======================
 def send_message(text):
     if not TELEGRAM_TOKEN or not CHAT_ID:
@@ -36,7 +36,7 @@ def send_message(text):
 
 
 # ======================
-# STATE HANDLING
+# STATE
 # ======================
 def load_state():
     state = {}
@@ -58,29 +58,23 @@ def save_state(state):
 
 
 # ======================
-# EMA CHECK
+# EMA LOGIC
 # ======================
 def check_ema(symbol, state):
     try:
-        df = yf.download(
-            symbol,
-            interval="5m",
-            period="1d",
-            progress=False
-        )
+        df = yf.download(symbol, interval="5m", period="1d", progress=False)
 
         if df is None or df.empty:
             print(symbol, "no data")
             return
 
-        # FIX: force clean series
+        # FIXED CLEAN DATA
         close = df["Close"]
 
-# force it into 1D clean series no matter what yfinance returns
-if isinstance(close, pd.DataFrame):
-    close = close.iloc[:, 0]
+        if isinstance(close, pd.DataFrame):
+            close = close.iloc[:, 0]
 
-close = close.dropna().astype(float)
+        close = close.dropna().astype(float)
 
         if len(close) < 30:
             print(symbol, "not enough data")
@@ -96,24 +90,16 @@ close = close.dropna().astype(float)
 
         last_signal = state.get(symbol, "NONE")
 
-        # ======================
-        # BUY SIGNAL
-        # ======================
+        # BUY
         if prev9 < prev21 and curr9 > curr21:
             if last_signal != "BUY":
-                send_message(
-                    f"🟢 BUY SIGNAL\n{symbol}\nEMA9 crossed ABOVE EMA21\nPrice: {price}"
-                )
+                send_message(f"🟢 BUY {symbol}\nEMA9 crossed ABOVE EMA21\nPrice: {price}")
                 state[symbol] = "BUY"
 
-        # ======================
-        # SELL SIGNAL
-        # ======================
+        # SELL
         elif prev9 > prev21 and curr9 < curr21:
             if last_signal != "SELL":
-                send_message(
-                    f"🔴 SELL SIGNAL\n{symbol}\nEMA9 crossed BELOW EMA21\nPrice: {price}"
-                )
+                send_message(f"🔴 SELL {symbol}\nEMA9 crossed BELOW EMA21\nPrice: {price}")
                 state[symbol] = "SELL"
 
         else:
@@ -128,11 +114,10 @@ close = close.dropna().astype(float)
 # ======================
 def main():
     print("EMA Bot Started")
-
     print("Telegram token set:", bool(TELEGRAM_TOKEN))
     print("Chat ID set:", bool(CHAT_ID))
-    
-        # ✅ TEST MESSAGE (ADD THIS)
+
+    # TEST MESSAGE (temporary)
     send_message("🧪 TEST: EMA bot Telegram is working")
 
     state = load_state()
