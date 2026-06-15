@@ -10,7 +10,7 @@ from ta.momentum import RSIIndicator
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-STOCKS = ["AAPL", "NVDA", "TSLA", "AMD", "MSFT", "META", "AMZN"]
+STOCKS = ["AAPL", "NVDA", "TSLA", "MSFT", "META", "AMZN","SOFI","NOK"]
 
 STATE_FILE = "state.txt"
 
